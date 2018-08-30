@@ -1,0 +1,224 @@
+#include <LiquidCrystal.h> //LCD
+#include <Adafruit_Sensor.h>  //temperature sensor dht11
+#include <DHT.h>  //temperature sensor dht11
+#include <DHT_U.h>   //temperature sensor dht11
+#include<AFMotor.h> //servo motor
+#include <Servo.h>  //servo motor
+
+//TemperatureHumidity sensor
+#define DHTPIN            2         // Pin which is connected to the temperature sensor.
+#define DHTTYPE           DHT11     // DHT 11-tempereature sensor type
+DHT_Unified dht(DHTPIN, DHTTYPE);
+int temp; //For passing to the LCD
+
+
+int pir1in = A5;
+int pir1inState = LOW;
+int pir1Val = 0;
+
+int pir2in = A4;
+int pir2inState = LOW;
+int pir2Val = 0;
+
+//flow sensor
+unsigned char flowsensor = A3; // Sensor Input
+unsigned long duration;
+int flowRate;
+
+//Cooling fan
+AF_DCMotor motor1(2); //M2 in the motor shield
+String speedVal;
+
+//Servo
+  Servo servo1;
+  Servo servo2;
+  int servo1_position = 0;
+  int servo2_position = 0;
+
+//For the fan() function
+int a = 0;
+int b = 0;
+
+//LCD
+//Initializing assigning the LCD pins to arduino pins
+const int rs = 12, en = 11, d4 = 8, d5 = 6, d6 = 5, d7 = 4;
+LiquidCrystal lcd(rs, en, d4, d5, d6, d7);
+
+void setup() {
+  //Starting Serial Monitor
+  Serial.begin(9600);
+  Serial.println("printing test");
+
+  //pir sensor setup
+  pinMode(pir1in, INPUT);
+  pinMode(pir2in, INPUT);
+
+  //temperature humidity sensor setup
+  dht.begin();
+  sensor_t sensor;
+  dht.temperature().getSensor(&sensor);
+  dht.humidity().getSensor(&sensor);
+  
+
+  //Water flow sensor
+  pinMode(flowsensor, INPUT);
+  digitalWrite(flowsensor, HIGH); // Optional Internal Pull-Up
+//  Serial.begin(9600);
+  
+  //Cooling fan
+  
+  //Servo
+  servo1.attach(10);
+  servo2.attach(9);
+
+ //LCD
+ // set up the LCD's number of columns and rows:
+  lcd.begin(16, 2);
+  // Print a message to the LCD.
+  lcd.print("Green AC");
+}
+
+void loop() {
+  pir();
+  tempHumiditySense();
+  waterflow();
+  coolingfan();
+fan();
+LCD();
+}
+
+void pir() {
+  pir1Val = digitalRead(pir1in);
+  pir2Val = digitalRead(pir2in);
+  
+  if(pir1Val == HIGH) {
+    Serial.println("1-HIGH");
+    servo1Open();
+  }
+  if(pir1Val == LOW) {
+      Serial.println("1-LOW");
+      servo1Close();
+  }
+   if(pir2Val == HIGH) {
+    Serial.println("2-HIGH");
+    servo2Open();
+   }
+  if(pir2Val == LOW) {
+      Serial.println("2-LOW");
+      servo2Close();
+   }
+  
+}
+
+void tempHumiditySense() {
+  
+  // Get temperature event and print its value.
+  sensors_event_t event;  
+  dht.temperature().getEvent(&event);
+  temp = event.temperature;
+  if (isnan(event.temperature)) {
+    Serial.println("Error reading temperature!");
+  }
+  else {
+    Serial.print("Temperature: ");
+    Serial.print(event.temperature);
+    Serial.println(" *C");
+  }
+  // Get humidity event and print its value.
+  dht.humidity().getEvent(&event);
+  if (isnan(event.relative_humidity)) {
+    Serial.println("Error reading humidity!");
+  }
+  else {
+    Serial.print("Humidity: ");
+    Serial.print(event.relative_humidity);
+    Serial.println("%");
+  }
+}
+
+void waterflow() {
+  duration = pulseIn(flowsensor, LOW);
+//  flowRate = (duration*60/7.5);
+  Serial.println(duration);
+}
+
+void coolingfan() {
+  motor1.run(FORWARD);
+}
+
+void servo1Open() {
+  for (servo1_position = 0; servo1_position <=90; servo1_position +=1){
+
+    servo1.write(servo1_position);
+   // delay(50);
+  }
+  a = 1;
+}
+void servo1Close() {
+  
+  for (servo1_position=90; servo1_position >= 0; servo1_position -=1){
+
+    servo1.write(servo1_position);
+   // delay(50);
+  }
+  a = 0;
+}
+void servo2Open() {
+  for (servo2_position = 0; servo2_position <=90; servo2_position +=1){
+
+    servo2.write(servo2_position);
+  //  delay(50);
+  }
+  b = 1;
+}
+void servo2Close() {
+  for (servo2_position=90; servo2_position >= 0; servo2_position -=1){
+
+    servo2.write(servo2_position);
+   // delay(50);
+  }
+  b = 0;
+}
+
+void fan(){
+  if(a==1 && b==1){
+    motor1.setSpeed(255);
+    speedVal = "100%";
+    Serial.print("Fan speed = ");
+    Serial.println(255);
+  }
+  if(a==0 && b==1){
+    motor1.setSpeed(180); //127.5
+    speedVal = "50% ";
+    Serial.print("Fan speed = ");
+    Serial.println(127.5);
+  }
+  if(a==1 && b==0){
+    motor1.setSpeed(180);
+    speedVal = "50% ";
+    Serial.print("Fan speed = ");
+    Serial.println(127.5);
+  }
+  if(a==0 && b==0){
+    motor1.setSpeed(0);
+    speedVal = "0%  ";
+    Serial.print("Fan speed = ");
+    Serial.println(0);
+  }
+}
+
+void LCD(){
+/*  // set the cursor to column 9, line 0
+  lcd.setCursor(9, 0);
+//  lcd.print(speedVal);
+//lcd.print("test");  */
+  // set the cursor to column 0, line 1
+  // (note: line 1 is the second row, since counting begins with 0):
+  lcd.setCursor(0, 1);
+  // print the number of seconds since reset:
+  lcd.print(temp);
+  lcd.print(" *C|");
+  lcd.print("wind:");
+
+  lcd.print(speedVal);
+}
